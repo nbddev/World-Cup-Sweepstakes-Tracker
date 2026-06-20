@@ -12,10 +12,20 @@ exports.handler = async function (event) {
     return { statusCode: 204, body: '' };
   }
 
-  const PASSWORD = process.env.SITE_PASSWORD || 'worldcup2026';
+  const PASSWORD = process.env.SITE_PASSWORD;
 
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
+  }
+
+  // Fail closed if the password isn't configured — never fall back to a
+  // value baked into the (now public) source.
+  if (!PASSWORD) {
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ok: false, error: 'SITE_PASSWORD not configured' }),
+    };
   }
 
   let body;
