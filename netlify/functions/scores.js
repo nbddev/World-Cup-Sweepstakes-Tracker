@@ -1,0 +1,170 @@
+/**
+ * Proxy for football-data.org API.
+ * Returns { standings, fixtures, stages } in the format consumed by the DC app.
+ * Cached at the Netlify CDN edge for 30 seconds to stay well within free-tier rate limits.
+ */
+
+const API_BASE = 'https://api.football-data.org/v4';
+
+// Most TLAs from football-data.org match FIFA codes used in the app.
+// This map handles known mismatches.
+const TLA_REMAP = {
+  HOL: 'NED', NLD: 'NED',   // Netherlands
+  JAP: 'JPN',                 // Japan
+  HTI: 'HAI',                 // Haiti
+  CRC: 'CRC',                 // Costa Rica (not in draft, no-op)
+  IRN: 'IRN',                 // Iran — should already match
+};
+
+function mapTla(tla) {
+  return tla ? (TLA_REMAP[tla] || tla) : '';
+}
+
+const DAYS   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatDate(utcDate) {
+  const d = new Date(utcDate);
+  return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+}
+
+// Maps football-data.org stage names → our app's stage codes
+// The app uses cumulative bonus: R32=2, R16=5, QF=10, SF=18, RU=30, W=50
+const STAGE_CODE = {
+  ROUND_OF_32:    'R32',
+  ROUND_OF_16:    'R16',
+  QUARTER_FINALS: 'QF',
+  SEMI_FINALS:    'SF',
+  THIRD_PLACE:    'SF',  // 3rd-place teams are already at SF level
+  FINAL:          'RU',  // default for finalists; winner overridden to 'W' below
+};
+
+const STAGE_ORDER = { group: 0, R32: 1, R16: 2, QF: 3, SF: 4, RU: 5, W: 6 };
+
+function higherStage(a, b) {
+  return (STAGE_ORDER[a] || 0) >= (STAGE_ORDER[b] || 0) ? a : b;
+}
+
+exports.handler = async function (event) {
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, body: '' };
+  }
+
+  const KEY = process.env.FOOTBALL_API_KEY;
+  if (!KEY) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'FOOTBALL_API_KEY not configured' }),
+    };
+  }
+
+  const headers = { 'X-Auth-Token': KEY };
+
+  try {
+    const [matchesRes, standingsRes] = await Promise.all([
+      fetch(`${API_BASE}/competitions/WC/matches`, { headers }),
+      fetch(`${API_BASE}/competitions/WC/standings`, { headers }),
+    ]);
+
+    if (!matchesRes.ok) {
+      const txt = await matchesRes.text();
+      return { statusCode: matchesRes.status, body: JSON.stringify({ error: txt }) };
+    }
+
+    const matchesData    = await matchesRes.json();
+    const standingsData  = standingsRes.ok ? await standingsRes.json() : { standings: [] };
+
+    // ── Group standings ────────────────────────────────────────────────────────
+    const standings = [];
+    for (const group of (standingsData.standings || [])) {
+      if (group.type !== 'TOTAL') continue;
+      for (const row of group.table) {
+        standings.push({
+          code: mapTla(row.team.tla),
+          pos:  row.position,
+          W:    row.won,
+          D:    row.draw,
+          L:    row.lost,
+          gf:   row.goalsFor,
+          ga:   row.goalsAgainst,
+          // Top 2 guaranteed; best 8 3rd-place also qualify but we'll flag those
+          // via knockout stage tracking below instead.
+          q:    row.position <= 2 ? 'Q' : null,
+        });
+      }
+    }
+
+    // ── Match fixtures & knockout stage tracking ───────────────────────────────
+    const fixtures  = [];
+    const stagesMap = {}; // tla → highest stage reached
+
+    const allMatches = (matchesData.matches || [])
+      .slice()
+      .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+
+    for (const m of allMatches) {
+      const homeTla = mapTla(m.homeTeam?.tla);
+      const awayTla = mapTla(m.awayTeam?.tla);
+      if (!homeTla || !awayTla) continue;
+
+      const ft = m.score?.fullTime;
+
+      if (m.stage === 'GROUP_STAGE') {
+        if (m.status === 'FINISHED' && ft) {
+          const grpLetter = (m.group || '').replace('GROUP_', '');
+          fixtures.push([homeTla, awayTla, ft.home ?? 0, ft.away ?? 0, grpLetter, formatDate(m.utcDate)]);
+        } else if (m.status === 'IN_PLAY' && ft) {
+          const grpLetter = (m.group || '').replace('GROUP_', '');
+          fixtures.push([homeTla, awayTla, ft.home ?? 0, ft.away ?? 0, grpLetter, formatDate(m.utcDate), 'LIVE']);
+        }
+      } else {
+        // Knockout match
+        const stageCode = STAGE_CODE[m.stage] || 'R32';
+
+        if (m.status === 'FINISHED' && ft) {
+          const homeWon = ft.home > ft.away;
+          const winnerTla = homeWon ? homeTla : awayTla;
+          const loserTla  = homeWon ? awayTla : homeTla;
+
+          // Loser's stage is finalised at this round
+          stagesMap[loserTla] = higherStage(stageCode, stagesMap[loserTla] || 'group');
+
+          // Winner: if it's the FINAL they get 'W', otherwise updated in next round
+          if (m.stage === 'FINAL') {
+            stagesMap[winnerTla] = 'W';
+          } else if (m.stage !== 'THIRD_PLACE') {
+            // Winner's stage will be set when they lose in a later round (or win the final).
+            // For now, ensure they're at least credited for this round:
+            stagesMap[winnerTla] = higherStage(stageCode, stagesMap[winnerTla] || 'group');
+          }
+
+          // Add to fixture list for display
+          const stageLabel = m.stage === 'FINAL' ? 'F' : stageCode;
+          fixtures.push([homeTla, awayTla, ft.home, ft.away, stageLabel, formatDate(m.utcDate)]);
+
+        } else if (m.status === 'IN_PLAY' && ft) {
+          const stageLabel = m.stage === 'FINAL' ? 'F' : stageCode;
+          fixtures.push([homeTla, awayTla, ft.home ?? 0, ft.away ?? 0, stageLabel, formatDate(m.utcDate), 'LIVE']);
+        }
+      }
+    }
+
+    const stages = Object.entries(stagesMap).map(([code, stage]) => ({ code, stage }));
+
+    return {
+      statusCode: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        // CDN caches for 30 s — all users share one API call per 30 s window
+        'Cache-Control': 's-maxage=30, max-age=30',
+      },
+      body: JSON.stringify({ standings, fixtures, stages }),
+    };
+
+  } catch (err) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: err.message }),
+    };
+  }
+};
