@@ -6,18 +6,50 @@
 
 const API_BASE = 'https://api.football-data.org/v4';
 
-// Most TLAs from football-data.org match FIFA codes used in the app.
-// This map handles known mismatches.
+// TLA remaps: football-data.org TLA / ISO 2-letter → our FIFA app code
 const TLA_REMAP = {
-  HOL: 'NED', NLD: 'NED',   // Netherlands
-  JAP: 'JPN',                 // Japan
-  HTI: 'HAI',                 // Haiti
-  CRC: 'CRC',                 // Costa Rica (not in draft, no-op)
-  IRN: 'IRN',                 // Iran — should already match
+  // 2-letter ISO → FIFA (in case API returns ISO codes)
+  MX:'MEX', KR:'KOR', CZ:'CZE', ZA:'RSA',
+  CH:'SUI', BA:'BIH', CA:'CAN', QA:'QAT',
+  MA:'MAR', BR:'BRA', HT:'HAI',
+  US:'USA', AU:'AUS', TR:'TUR', PY:'PAR',
+  DE:'GER', CI:'CIV', EC:'ECU', CW:'CUW',
+  SE:'SWE', JP:'JPN', NL:'NED', TN:'TUN',
+  NZ:'NZL', IR:'IRN', BE:'BEL', EG:'EGY',
+  UY:'URU', SA:'KSA', ES:'ESP', CV:'CPV',
+  NO:'NOR', FR:'FRA', SN:'SEN', IQ:'IRQ',
+  AR:'ARG', AT:'AUT', JO:'JOR', DZ:'ALG',
+  CO:'COL', CD:'COD', PT:'POR', UZ:'UZB',
+  GH:'GHA', PA:'PAN', HR:'CRO',
+  // 3-letter mismatches
+  HOL:'NED', NLD:'NED', JAP:'JPN', HTI:'HAI',
+  CHE:'SUI', TUR:'TUR', PRK:'KOR', KOR:'KOR',
 };
 
-function mapTla(tla) {
-  return tla ? (TLA_REMAP[tla] || tla) : '';
+// Name-based fallback — API team names → our codes
+const NAME_TO_CODE = {
+  'Mexico':'MEX','South Korea':'KOR','Korea Republic':'KOR','Czechia':'CZE',
+  'Czech Republic':'CZE','South Africa':'RSA','Switzerland':'SUI',
+  'Bosnia & Herzegovina':'BIH','Bosnia and Herzegovina':'BIH','Canada':'CAN',
+  'Qatar':'QAT','Scotland':'SCO','Morocco':'MAR','Brazil':'BRA','Haiti':'HAI',
+  'United States':'USA','USA':'USA','Australia':'AUS','Turkey':'TUR',
+  'Türkiye':'TUR','Paraguay':'PAR','Germany':'GER',"Côte d'Ivoire":'CIV',
+  "Cote d'Ivoire":'CIV','Ivory Coast':'CIV','Ecuador':'ECU','Curaçao':'CUW',
+  'Curacao':'CUW','Sweden':'SWE','Japan':'JPN','Netherlands':'NED',
+  'Tunisia':'TUN','New Zealand':'NZL','Iran':'IRN','Belgium':'BEL',
+  'Egypt':'EGY','Uruguay':'URU','Saudi Arabia':'KSA','Spain':'ESP',
+  'Cape Verde':'CPV','Norway':'NOR','France':'FRA','Senegal':'SEN',
+  'Iraq':'IRQ','Argentina':'ARG','Austria':'AUT','Jordan':'JOR',
+  'Algeria':'ALG','Colombia':'COL','DR Congo':'COD','Congo DR':'COD',
+  'Democratic Republic of Congo':'COD','Portugal':'POR','Uzbekistan':'UZB',
+  'England':'ENG','Ghana':'GHA','Panama':'PAN','Croatia':'CRO',
+};
+
+function mapTla(tla, name) {
+  const byTla = tla ? (TLA_REMAP[tla] || tla) : '';
+  if (byTla && byTla.length === 3) return byTla;
+  // Fall back to name lookup if TLA didn't resolve cleanly
+  return (name && NAME_TO_CODE[name]) || byTla || '';
 }
 
 const DAYS   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -80,7 +112,7 @@ exports.handler = async function (event) {
       if (group.type !== 'TOTAL') continue;
       for (const row of group.table) {
         standings.push({
-          code: mapTla(row.team.tla),
+          code: mapTla(row.team.tla, row.team.name),
           pos:  row.position,
           W:    row.won,
           D:    row.draw,
@@ -103,8 +135,8 @@ exports.handler = async function (event) {
       .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
 
     for (const m of allMatches) {
-      const homeTla = mapTla(m.homeTeam?.tla);
-      const awayTla = mapTla(m.awayTeam?.tla);
+      const homeTla = mapTla(m.homeTeam?.tla, m.homeTeam?.name);
+      const awayTla = mapTla(m.awayTeam?.tla, m.awayTeam?.name);
       if (!homeTla || !awayTla) continue;
 
       const ft = m.score?.fullTime;
