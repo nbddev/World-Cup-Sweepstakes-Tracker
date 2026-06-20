@@ -166,7 +166,7 @@
             <div style="padding:6px 16px 14px;">
               <sc-for list="{{ p.teams }}" as="tm" hint-placeholder-count="2">
                 <div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f0eee3;">
-                  <div style="font-size:26px;width:34px;text-align:center;flex:none;">{{ tm.flag }}</div>
+                  <img src="{{ tm.flagUrl }}" style="width:34px;height:auto;flex:none;border-radius:2px;" alt="{{ tm.name }}">
                   <div style="flex:1;min-width:0;">
                     <div style="display:flex;align-items:center;gap:7px;">
                       <span style="font-weight:700;font-size:15px;">{{ tm.name }}</span>
@@ -275,7 +275,10 @@
               <span style="font-weight:800;font-size:17px;">{{ r.name }}</span>
               <span style="{{ r.tieStyle }}">{{ r.tieLabel }}</span>
             </div>
-            <div style="font-size:22px;text-align:center;letter-spacing:2px;">{{ r.flags }}</div>
+            <div style="display:flex;gap:4px;justify-content:center;align-items:center;">
+              <img src="{{ r.flagUrl1 }}" style="height:16px;width:auto;border-radius:2px;">
+              <img src="{{ r.flagUrl2 }}" style="height:16px;width:auto;border-radius:2px;">
+            </div>
             <div style="text-align:right;font-family:'Anton',sans-serif;font-size:24px;">{{ r.totalStr }}</div>
           </div>
         </sc-for>
@@ -341,7 +344,7 @@
               <div style="{{ row.rowStyle }}">
                 <div style="font-weight:800;font-size:12px;color:{{ row.markColor }};">{{ row.pos }}</div>
                 <div style="display:flex;align-items:center;gap:7px;min-width:0;">
-                  <span style="font-size:17px;">{{ row.flag }}</span>
+                  <img src="{{ row.flagUrl }}" style="width:22px;height:auto;border-radius:2px;" alt="{{ row.name }}">
                   <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.name }}</span>
                   <span style="{{ row.ownerStyle }}">{{ row.ownerLabel }}</span>
                 </div>
@@ -423,6 +426,19 @@ class Component extends DCLogic {
       shilpi:{name:'Shilpi',color:'#c026d3'},
     };
 
+    const CODE_TO_ISO = {
+      MEX:'mx',KOR:'kr',CZE:'cz',RSA:'za',SUI:'ch',BIH:'ba',CAN:'ca',QAT:'qa',
+      SCO:'gb-sct',MAR:'ma',BRA:'br',HAI:'ht',USA:'us',AUS:'au',TUR:'tr',PAR:'py',
+      GER:'de',CIV:'ci',ECU:'ec',CUW:'cw',SWE:'se',JPN:'jp',NED:'nl',TUN:'tn',
+      NZL:'nz',IRN:'ir',BEL:'be',EGY:'eg',URU:'uy',KSA:'sa',ESP:'es',CPV:'cv',
+      NOR:'no',FRA:'fr',SEN:'sn',IRQ:'iq',ARG:'ar',AUT:'at',JOR:'jo',ALG:'dz',
+      COL:'co',COD:'cd',POR:'pt',UZB:'uz',ENG:'gb-eng',GHA:'gh',PAN:'pa',CRO:'hr',
+    };
+    const flagUrl = (code) => {
+      const iso = CODE_TO_ISO[code];
+      return iso ? `https://flagcdn.com/24x18/${iso}.png` : '';
+    };
+
     // Base team data: code, name, flag, group, owner, pot
     // Standings (W/D/L/gf/ga/pos/q) are overwritten from the live API.
     const base = [
@@ -479,7 +495,7 @@ class Component extends DCLogic {
     // Build teams object with defaults
     const teams = {};
     base.forEach(([code, name, flag, group, owner, pot]) => {
-      teams[code] = { code, name, flag, group, owner, pot,
+      teams[code] = { code, name, flag, flagUrl:flagUrl(code), group, owner, pot,
         pos:0, W:0, D:0, L:0, gf:0, ga:0, q:null, stage:'group' };
     });
 
@@ -553,7 +569,7 @@ class Component extends DCLogic {
       teams: p.teams.slice().sort((a,b) => (b.pot==='A'?1:0)-(a.pot==='A'?1:0)).map(t => {
         const [sl, sc] = stageInfo(t);
         const isA = t.pot==='A';
-        return { flag:t.flag, name:t.name,
+        return { flag:t.flag, flagUrl:t.flagUrl, name:t.name,
           tag: isA?'POT A 🥇':'WILDCARD 🎲',
           tagStyle:`font-size:9px;font-weight:800;letter-spacing:.5px;padding:2px 6px;border-radius:5px;white-space:nowrap;${isA?'background:#fef3d4;color:#9a6b04;':'background:#eef0ea;color:#5e6b5e;'}`,
           statusLabel:sl, statusColor:sc, ptsStr:this.fmt(this.teamPoints(t)) };
@@ -562,7 +578,7 @@ class Component extends DCLogic {
 
     const board = playerList.map((p,i) => ({
       rankLabel: medal(p.rank), color:p.color, name:p.name,
-      flags: p.teams.map(t=>t.flag).join(' '),
+      flagUrl1: p.teams[0]?.flagUrl||'', flagUrl2: p.teams[1]?.flagUrl||'',
       totalStr: this.fmt(p.total),
       tieLabel: tieCount[p.rank]>1 ? 'TIE' : '',
       tieStyle: tieCount[p.rank]>1 ? 'font-size:9px;font-weight:800;letter-spacing:.5px;background:#eef0ea;color:#6f7a6f;padding:2px 5px;border-radius:4px;' : 'display:none;',
@@ -578,9 +594,9 @@ class Component extends DCLogic {
 
     const getSide = (code) => {
       const t = teams[code];
-      if (!t) return { flag:'?', name:code, owner:'', ownerColor:'' };
+      if (!t) return { flag:'?', flagUrl:'', name:code, owner:'', ownerColor:'' };
       const ow = t.owner ? P[t.owner] : null;
-      return { flag:t.flag, name:t.name, owner:ow?ow.name:'', ownerColor:ow?ow.color:'' };
+      return { flag:t.flag, flagUrl:t.flagUrl, name:t.name, owner:ow?ow.name:'', ownerColor:ow?ow.color:'' };
     };
 
     const mkGame = (f) => {
@@ -638,7 +654,7 @@ class Component extends DCLogic {
         const top = t.q==='Q';
         const gd  = t.gf - t.ga;
         const [ol, os] = ownerChip(t);
-        return { pos:t.pos||'–', flag:t.flag, name:t.name,
+        return { pos:t.pos||'–', flag:t.flag, flagUrl:t.flagUrl, name:t.name,
           MP:t.W+t.D+t.L, W:t.W, D:t.D, L:t.L,
           GD: gd>0?'+'+gd:String(gd), Pts:t.W*3+t.D,
           markColor: top ? '#1c9b56' : '#c2c7bd',

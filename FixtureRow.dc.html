@@ -13,7 +13,7 @@
       <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ homeName }}</div>
       <div style="{{ homeOwnerStyle }}">{{ homeOwner }}</div>
     </div>
-    <span style="font-size:26px;flex:none;">{{ homeFlag }}</span>
+    <img src="{{ homeFlag }}" style="width:32px;height:auto;flex:none;border-radius:2px;" alt="">
   </div>
 
   <div style="flex:none;text-align:center;padding:0 6px;min-width:96px;">
@@ -22,7 +22,7 @@
   </div>
 
   <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
-    <span style="font-size:26px;flex:none;">{{ awayFlag }}</span>
+    <img src="{{ awayFlag }}" style="width:32px;height:auto;flex:none;border-radius:2px;" alt="">
     <div style="min-width:0;">
       <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ awayName }}</div>
       <div style="{{ awayOwnerStyle }}">{{ awayOwner }}</div>
@@ -42,8 +42,8 @@ class Component extends DCLogic {
       : 'display:none;';
     return {
       wrapStyle: `position:relative;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid ${g.clash?'#f2d9a0':'#e3e0d3'};border-radius:13px;padding:13px 16px;${g.clash?'box-shadow:0 0 0 2px rgba(242,183,5,.12);':''}`,
-      homeName: h.name, homeFlag: h.flag, homeOwner: h.owner, homeOwnerStyle: ownerStyle(h.ownerColor,'right'),
-      awayName: a.name, awayFlag: a.flag, awayOwner: a.owner, awayOwnerStyle: ownerStyle(a.ownerColor,'left'),
+      homeName: h.name, homeFlag: h.flagUrl||h.flag, homeOwner: h.owner, homeOwnerStyle: ownerStyle(h.ownerColor,'right'),
+      awayName: a.name, awayFlag: a.flagUrl||a.flag, awayOwner: a.owner, awayOwnerStyle: ownerStyle(a.ownerColor,'left'),
       score: g.score, scoreColor: g.scoreColor, statusLabel: g.statusLabel, statusColor: g.statusColor,
       clashText: g.clashText,
       clashStyle: g.clash

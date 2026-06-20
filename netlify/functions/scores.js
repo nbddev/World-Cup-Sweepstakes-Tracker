@@ -16,7 +16,7 @@ const TLA_REMAP = {
   DE:'GER', CI:'CIV', EC:'ECU', CW:'CUW',
   SE:'SWE', JP:'JPN', NL:'NED', TN:'TUN',
   NZ:'NZL', IR:'IRN', BE:'BEL', EG:'EGY',
-  UY:'URU', SA:'KSA', ES:'ESP', CV:'CPV',
+  UY:'URU', SA:'KSA', ES:'ESP', CV:'CPV', URY:'URU',
   NO:'NOR', FR:'FRA', SN:'SEN', IQ:'IRQ',
   AR:'ARG', AT:'AUT', JO:'JOR', DZ:'ALG',
   CO:'COL', CD:'COD', PT:'POR', UZ:'UZB',
