@@ -62,9 +62,12 @@ function formatDate(utcDate) {
 
 // Maps football-data.org stage names → our app's stage codes
 // The app uses cumulative bonus: R32=2, R16=5, QF=10, SF=18, RU=30, W=50
+// NOTE: football-data.org names the knockout stages LAST_32 / LAST_16
+// (not ROUND_OF_32 / ROUND_OF_16). Using the wrong keys silently breaks
+// knockout detection, so these must match the API exactly.
 const STAGE_CODE = {
-  ROUND_OF_32:    'R32',
-  ROUND_OF_16:    'R16',
+  LAST_32:        'R32',
+  LAST_16:        'R16',
   QUARTER_FINALS: 'QF',
   SEMI_FINALS:    'SF',
   THIRD_PLACE:    'SF',  // 3rd-place teams are already at SF level
@@ -128,6 +131,7 @@ exports.handler = async function (event) {
 
     // ── Match fixtures & knockout stage tracking ───────────────────────────────
     const fixtures  = [];
+    const upcoming  = []; // future matches (TIMED/SCHEDULED) for the "Upcoming" section
     const stagesMap = {}; // tla → highest stage reached
 
     const allMatches = (matchesData.matches || [])
@@ -140,6 +144,17 @@ exports.handler = async function (event) {
       if (!homeTla || !awayTla) continue;
 
       const ft = m.score?.fullTime;
+
+      // Future match → collect for the "Upcoming" section (raw ISO date so the
+      // client can render kickoff in the viewer's local time). Knockout matches
+      // with TBD teams were already skipped by the !homeTla/!awayTla guard.
+      if (m.status === 'TIMED' || m.status === 'SCHEDULED') {
+        const label = m.stage === 'GROUP_STAGE'
+          ? (m.group || '').replace('GROUP_', '')
+          : (m.stage === 'FINAL' ? 'F' : m.stage === 'THIRD_PLACE' ? '3P' : (STAGE_CODE[m.stage] || m.stage));
+        upcoming.push({ h: homeTla, a: awayTla, g: label, utc: m.utcDate });
+        continue;
+      }
 
       if (m.stage === 'GROUP_STAGE') {
         if (m.status === 'FINISHED' && ft) {
@@ -190,7 +205,7 @@ exports.handler = async function (event) {
         // CDN caches for 30 s — all users share one API call per 30 s window
         'Cache-Control': 's-maxage=30, max-age=30',
       },
-      body: JSON.stringify({ standings, fixtures, stages }),
+      body: JSON.stringify({ standings, fixtures, stages, upcoming: upcoming.slice(0, 16) }),
     };
 
   } catch (err) {

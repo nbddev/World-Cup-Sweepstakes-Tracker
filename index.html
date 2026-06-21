@@ -310,6 +310,33 @@
         <button onClick="{{ onRefresh }}" style="{{ refreshStyle }}">{{ refreshLabel }}</button>
       </div>
       <div style="font-size:13px;color:#6f7a6f;font-weight:600;margin-bottom:18px;">{{ scoreSubtitle }}</div>
+
+      <sc-if value="{{ hasUpcoming }}">
+      <div style="margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:9px;margin:0 0 14px;">
+          <span style="font-family:'Anton',sans-serif;font-size:18px;letter-spacing:.5px;text-transform:uppercase;color:#0a4d2c;">⏱ Upcoming</span>
+          <span style="flex:1;height:2px;background:#e3e0d3;"></span>
+        </div>
+        <sc-for list="{{ upcomingDays }}" as="day" hint-placeholder-count="3">
+          <div style="margin-bottom:18px;">
+            <div style="display:flex;align-items:center;gap:9px;margin:0 0 11px;">
+              <span style="font-family:'Anton',sans-serif;font-size:16px;letter-spacing:.5px;text-transform:uppercase;">{{ day.date }}</span>
+              <span style="flex:1;height:1px;background:#e3e0d3;"></span>
+            </div>
+            <div style="display:grid;gap:10px;">
+              <sc-for list="{{ day.games }}" as="g" hint-placeholder-count="3">
+                <dc-import name="FixtureRow" g="{{ g }}" hint-size="100%,76px"></dc-import>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;margin:0 0 14px;">
+        <span style="font-family:'Anton',sans-serif;font-size:18px;letter-spacing:.5px;text-transform:uppercase;color:#0a4d2c;">✅ Results</span>
+        <span style="flex:1;height:2px;background:#e3e0d3;"></span>
+      </div>
+      </sc-if>
+
       <sc-for list="{{ scoreDays }}" as="day" hint-placeholder-count="8">
         <div style="margin-bottom:22px;">
           <div style="display:flex;align-items:center;gap:9px;margin:0 0 11px;">
@@ -604,7 +631,7 @@ class Component extends DCLogic {
       : `${leader.name} leads outright for now.`;
 
     // ── Fixtures ─────────────────────────────────────────────────────────────
-    const STAGE_LABELS = { R32:'Round of 32', R16:'Round of 16', QF:'Quarter-final', SF:'Semi-final', F:'Final' };
+    const STAGE_LABELS = { R32:'Round of 32', R16:'Round of 16', QF:'Quarter-final', SF:'Semi-final', F:'Final', '3P':'3rd place' };
 
     const getSide = (code) => {
       const t = teams[code];
@@ -655,6 +682,32 @@ class Component extends DCLogic {
     }).length;
     const scoreSubtitle = `${rawFx.length} games played · ${clashCount} mate-vs-mate clash${clashCount!==1?'es':''} 🔥`;
 
+    // ── Upcoming fixtures ─────────────────────────────────────────────────────
+    // Reuses getSide() (flags/owners) and the same clash logic as mkGame, but
+    // shows kickoff time (in the viewer's local timezone) instead of a score.
+    const rawUp = (liveData && liveData.upcoming) ? liveData.upcoming : [];
+    const mkUpcoming = (u) => {
+      const H = getSide(u.h), A = getSide(u.a);
+      const clash     = !!(H.owner && A.owner && H.owner !== A.owner);
+      const sameOwner = !!(H.owner && A.owner && H.owner === A.owner);
+      const stageLabel = u.g.length === 1 ? `Group ${u.g}` : (STAGE_LABELS[u.g] || u.g);
+      const time = new Date(u.utc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return {
+        home: H, away: A,
+        score: time, scoreColor: '#0a4d2c',
+        statusLabel: `⏱ ${stageLabel}`, statusColor: '#9aa39b',
+        clash: clash || sameOwner,
+        clashText: sameOwner ? `🎭 ${H.owner} owns both` : clash ? `🔥 ${H.owner} vs ${A.owner}` : '',
+      };
+    };
+    const upOrder = [], upByDate = {};
+    rawUp.forEach(u => {
+      const dk = new Date(u.utc).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+      if (!upByDate[dk]) { upByDate[dk] = []; upOrder.push(dk); }
+      upByDate[dk].push(mkUpcoming(u));
+    });
+    const upcomingDays = upOrder.map(d => ({ date: d, games: upByDate[d] }));
+
     // ── Groups ────────────────────────────────────────────────────────────────
     const letters   = ['A','B','C','D','E','F','G','H','I','J','K','L'];
     const ownerChip = (t) => {
@@ -698,6 +751,7 @@ class Component extends DCLogic {
       refreshStyle: `font-family:'Hanken Grotesk',sans-serif;font-weight:800;font-size:12px;letter-spacing:.3px;padding:7px 14px;border-radius:8px;border:1.5px solid ${this.state.refreshing?'#c2c7bd':'#0a4d2c'};background:${this.state.refreshing?'#f0eee3':'#0a4d2c'};color:${this.state.refreshing?'#9aa39b':'#f4f2e9'};cursor:${this.state.refreshing?'not-allowed':'pointer'};transition:opacity .15s;white-space:nowrap;`,
       squadPlayers, board, tiebreakNote,
       scoreDays, clashCount, scoreSubtitle, noScores: scoreDays.length===0,
+      upcomingDays, hasUpcoming: upcomingDays.length>0,
       groups, groupsSubtitle, roundNames,
     };
   }
