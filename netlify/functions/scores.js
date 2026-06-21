@@ -96,9 +96,10 @@ exports.handler = async function (event) {
   const headers = { 'X-Auth-Token': KEY };
 
   try {
-    const [matchesRes, standingsRes] = await Promise.all([
+    const [matchesRes, standingsRes, scorersRes] = await Promise.all([
       fetch(`${API_BASE}/competitions/WC/matches`, { headers }),
       fetch(`${API_BASE}/competitions/WC/standings`, { headers }),
+      fetch(`${API_BASE}/competitions/WC/scorers?limit=20`, { headers }),
     ]);
 
     if (!matchesRes.ok) {
@@ -108,6 +109,14 @@ exports.handler = async function (event) {
 
     const matchesData    = await matchesRes.json();
     const standingsData  = standingsRes.ok ? await standingsRes.json() : { standings: [] };
+    const scorersData    = scorersRes.ok ? await scorersRes.json() : { scorers: [] };
+
+    // Top scorers (Golden Boot). Free tier returns ~top 10.
+    const scorers = (scorersData.scorers || []).map(s => ({
+      name:  s.player?.name || 'Unknown',
+      code:  mapTla(s.team?.tla, s.team?.name) || null,
+      goals: s.goals ?? 0,
+    }));
 
     // ── Group standings ────────────────────────────────────────────────────────
     const standings = [];
@@ -229,7 +238,7 @@ exports.handler = async function (event) {
         // CDN caches for 30 s — all users share one API call per 30 s window
         'Cache-Control': 's-maxage=30, max-age=30',
       },
-      body: JSON.stringify({ standings, fixtures, stages, upcoming: upcoming.slice(0, 16), bracket }),
+      body: JSON.stringify({ standings, fixtures, stages, upcoming: upcoming.slice(0, 16), bracket, scorers }),
     };
 
   } catch (err) {

@@ -129,6 +129,7 @@
         <button onClick="{{ goScores }}" style="position:relative;font-family:'Hanken Grotesk',sans-serif;font-weight:800;font-size:14px;letter-spacing:.3px;padding:11px 18px;border:none;cursor:pointer;border-radius:11px 11px 0 0;white-space:nowrap;background:rgba(255,255,255,.08);color:#cfe6d8;overflow:hidden;">Scores<sc-if value="{{ isScores }}"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f2e9;color:#0a4d2c;border-radius:11px 11px 0 0;">Scores</span></sc-if></button>
         <button onClick="{{ goGroups }}" style="position:relative;font-family:'Hanken Grotesk',sans-serif;font-weight:800;font-size:14px;letter-spacing:.3px;padding:11px 18px;border:none;cursor:pointer;border-radius:11px 11px 0 0;white-space:nowrap;background:rgba(255,255,255,.08);color:#cfe6d8;overflow:hidden;">Groups<sc-if value="{{ isGroups }}"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f2e9;color:#0a4d2c;border-radius:11px 11px 0 0;">Groups</span></sc-if></button>
         <button onClick="{{ goBracket }}" style="position:relative;font-family:'Hanken Grotesk',sans-serif;font-weight:800;font-size:14px;letter-spacing:.3px;padding:11px 18px;border:none;cursor:pointer;border-radius:11px 11px 0 0;white-space:nowrap;background:rgba(255,255,255,.08);color:#cfe6d8;overflow:hidden;">Bracket<sc-if value="{{ isBracket }}"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f2e9;color:#0a4d2c;border-radius:11px 11px 0 0;">Bracket</span></sc-if></button>
+        <button onClick="{{ goScorers }}" style="position:relative;font-family:'Hanken Grotesk',sans-serif;font-weight:800;font-size:14px;letter-spacing:.3px;padding:11px 18px;border:none;cursor:pointer;border-radius:11px 11px 0 0;white-space:nowrap;background:rgba(255,255,255,.08);color:#cfe6d8;overflow:hidden;">Golden Boot<sc-if value="{{ isScorers }}"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f2e9;color:#0a4d2c;border-radius:11px 11px 0 0;">Golden Boot</span></sc-if></button>
       </div>
     </div>
   </div>
@@ -445,6 +446,41 @@
           </sc-for>
         </div>
       </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <!-- ===== GOLDEN BOOT ===== -->
+    <sc-if value="{{ isScorers }}">
+    <div>
+      <h2 style="font-family:'Anton',sans-serif;font-size:30px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.5px;">Golden Boot</h2>
+      <div style="font-size:13px;color:#6f7a6f;font-weight:600;margin-bottom:20px;">{{ scorersSubtitle }}</div>
+      <sc-if value="{{ hasScorers }}">
+      <div style="background:#fff;border:1px solid #e3e0d3;border-radius:16px;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.02);">
+        <div style="display:grid;grid-template-columns:42px 1fr auto;gap:12px;padding:11px 18px;background:#0a4d2c;color:#cfe6d8;font-size:11px;letter-spacing:1.2px;font-weight:800;text-transform:uppercase;">
+          <div>#</div><div>Player</div><div style="text-align:right;">Goals</div>
+        </div>
+        <sc-for list="{{ scorersList }}" as="s" hint-placeholder-count="10">
+          <div style="{{ s.rowStyle }}">
+            <div style="font-family:'Anton',sans-serif;font-size:20px;display:flex;align-items:center;">{{ s.rankLabel }}</div>
+            <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+              <span style="font-weight:800;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ s.name }}</span>
+              <div style="display:flex;align-items:center;gap:7px;min-width:0;">
+                <div style="{{ s.flagDivStyle }}"></div>
+                <span style="font-size:12px;font-weight:700;color:#3c463c;white-space:nowrap;">{{ s.teamName }}</span>
+                <span style="{{ s.ownerStyle }}">{{ s.ownerLabel }}</span>
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-family:'Anton',sans-serif;font-size:24px;color:#0a4d2c;">{{ s.goals }}</div>
+              <div style="font-size:9px;letter-spacing:1px;color:#9aa39b;font-weight:700;">GOALS</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+      <sc-if value="{{ noScorers }}">
+        <div style="background:#fbfaf3;border:1px dashed #d8d5c7;border-radius:14px;padding:18px 20px;text-align:center;font-size:13.5px;color:#6f7a6f;font-weight:600;">⚽ No goals yet — the Golden Boot race kicks off with the first match.</div>
       </sc-if>
     </div>
     </sc-if>
@@ -820,12 +856,34 @@ class Component extends DCLogic {
       return { code, label, ties, sub:`${ties.length} tie${ties.length!==1?'s':''}` };
     }).filter(r => r.ties.length>0);
 
+    // ── Golden Boot (top scorers) ─────────────────────────────────────────────
+    // Tags any scorer whose team is owned by one of the 9 players.
+    const rawSc = (liveData && liveData.scorers) ? liveData.scorers : [];
+    const scorersList = rawSc.map((s, i) => {
+      const tm = teams[s.code];
+      const ow = (tm && tm.owner) ? P[tm.owner] : null;
+      return {
+        rankLabel: medal(i+1),
+        name: s.name,
+        flagDivStyle: flagDiv(tm ? tm.flagUrl : '', 24, 16),
+        teamName: tm ? tm.name : (s.code || '—'),
+        ownerLabel: ow ? ow.name : '',
+        ownerStyle: ow ? `font-size:10px;font-weight:800;color:#fff;background:${ow.color};padding:2px 6px;border-radius:5px;white-space:nowrap;flex:none;` : 'display:none;',
+        goals: s.goals,
+        rowStyle: `display:grid;grid-template-columns:42px 1fr auto;gap:12px;padding:13px 18px;align-items:center;${i<rawSc.length-1?'border-bottom:1px solid #f0eee3;':''}${i===0?'background:#fffdf5;':''}`,
+      };
+    });
+    const ownedScorers = scorersList.filter(s => s.ownerLabel).length;
+    const scorersSubtitle = scorersList.length
+      ? `Race for the Golden Boot 🥇 · ${ownedScorers} play for a mate's team`
+      : 'The Golden Boot race starts once the goals fly in.';
+
     return {
       leagueName, potAmount, leaderName:leader.name,
       goSquad:setTab('squad'), goTable:setTab('table'), goScores:setTab('scores'),
-      goGroups:setTab('groups'), goBracket:setTab('bracket'),
+      goGroups:setTab('groups'), goBracket:setTab('bracket'), goScorers:setTab('scorers'),
       isSquad:tab==='squad', isTable:tab==='table', isScores:tab==='scores',
-      isGroups:tab==='groups', isBracket:tab==='bracket',
+      isGroups:tab==='groups', isBracket:tab==='bracket', isScorers:tab==='scorers',
       isLoading: loading && !liveData,
       onRefresh: () => this.refreshScores(),
       refreshLabel: this.state.refreshing ? '⏳ Refreshing…' : '🔄 Refresh scores',
@@ -835,6 +893,7 @@ class Component extends DCLogic {
       upcomingDays, hasUpcoming: upcomingDays.length>0,
       groups, groupsSubtitle, roundNames,
       bracketRounds, bracketLive, bracketLocked: !bracketLive, bracketSubtitle,
+      scorersList, hasScorers: scorersList.length>0, noScorers: scorersList.length===0, scorersSubtitle,
     };
   }
 }
