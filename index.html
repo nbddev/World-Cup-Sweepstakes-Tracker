@@ -399,7 +399,42 @@
     <sc-if value="{{ isBracket }}">
     <div>
       <h2 style="font-family:'Anton',sans-serif;font-size:30px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.5px;">Knockout Bracket</h2>
-      <div style="font-size:13px;color:#6f7a6f;font-weight:600;margin-bottom:20px;">The knockout draw is set once the group stage wraps up.</div>
+      <div style="font-size:13px;color:#6f7a6f;font-weight:600;margin-bottom:20px;">{{ bracketSubtitle }}</div>
+
+      <sc-if value="{{ bracketLive }}">
+        <sc-for list="{{ bracketRounds }}" as="rd" hint-placeholder-count="6">
+          <div style="margin-bottom:24px;">
+            <div style="display:flex;align-items:baseline;gap:9px;margin:0 0 12px;">
+              <span style="font-family:'Anton',sans-serif;font-size:18px;letter-spacing:.5px;text-transform:uppercase;color:#0a4d2c;">{{ rd.label }}</span>
+              <span style="font-size:11px;font-weight:700;color:#9aa39b;">{{ rd.sub }}</span>
+              <span style="flex:1;height:2px;background:#e3e0d3;"></span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:12px;">
+              <sc-for list="{{ rd.ties }}" as="t" hint-placeholder-count="4">
+                <div style="{{ t.cardStyle }}">
+                  <div style="display:flex;align-items:center;gap:9px;padding:3px 0;">
+                    <div style="{{ t.homeFlagStyle }}"></div>
+                    <span style="{{ t.homeNameStyle }}">{{ t.homeName }}</span>
+                    <span style="{{ t.homeOwnerStyle }}">{{ t.homeOwner }}</span>
+                    <span style="{{ t.homeScoreStyle }}">{{ t.homeScore }}</span>
+                  </div>
+                  <div style="height:1px;background:#f0eee3;margin:2px 0;"></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:3px 0;">
+                    <div style="{{ t.awayFlagStyle }}"></div>
+                    <span style="{{ t.awayNameStyle }}">{{ t.awayName }}</span>
+                    <span style="{{ t.awayOwnerStyle }}">{{ t.awayOwner }}</span>
+                    <span style="{{ t.awayScoreStyle }}">{{ t.awayScore }}</span>
+                  </div>
+                  <div style="{{ t.metaStyle }}">{{ t.metaLabel }}</div>
+                  <div style="{{ t.clashStyle }}">{{ t.clashText }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </sc-if>
+
+      <sc-if value="{{ bracketLocked }}">
       <div style="background:#fff;border:1px solid #e3e0d3;border-radius:16px;padding:48px 28px;text-align:center;">
         <div style="font-size:42px;margin-bottom:10px;">🔒</div>
         <div style="font-family:'Anton',sans-serif;font-size:24px;text-transform:uppercase;letter-spacing:.5px;">To be decided</div>
@@ -410,6 +445,7 @@
           </sc-for>
         </div>
       </div>
+      </sc-if>
     </div>
     </sc-if>
 
@@ -739,6 +775,51 @@ class Component extends DCLogic {
     // ── Bracket ───────────────────────────────────────────────────────────────
     const roundNames = ['Round of 32','Round of 16','Quarter-finals','Semi-finals','Final'];
 
+    // Vertical round sections. Ties stay TBD (greyed) until the API fills in
+    // teams after the group stage; bracketLive flips on once any team is known.
+    const rawBr = (liveData && liveData.bracket) ? liveData.bracket : [];
+    const bracketLive = rawBr.some(t => t.h || t.a);
+    const bracketSubtitle = bracketLive
+      ? 'Winners advance · 🔥 marks a mate-vs-mate tie'
+      : 'The knockout draw is set once the group stage wraps up.';
+    const ROUND_DEFS = [['R32','Round of 32'],['R16','Round of 16'],['QF','Quarter-finals'],['SF','Semi-finals'],['3P','3rd-place playoff'],['F','Final']];
+    const bSide = (code) => {
+      if (!code) return { name:'TBD', flagUrl:'', owner:'', ownerColor:'', tbd:true };
+      const s = getSide(code);
+      return { name:s.name, flagUrl:s.flagUrl, owner:s.owner, ownerColor:s.ownerColor, tbd:false };
+    };
+    const mkTie = (t) => {
+      const H = bSide(t.h), A = bSide(t.a);
+      const finished = t.status === 'FINISHED';
+      const live     = t.status === 'IN_PLAY';
+      const played   = finished || live;
+      const clash     = !!(H.owner && A.owner && H.owner !== A.owner);
+      const sameOwner = !!(H.owner && A.owner && H.owner === A.owner);
+      const hWin = t.winner === 'h', aWin = t.winner === 'a';
+      const nameStyle  = (S, win) => `font-weight:${win?800:700};font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${S.tbd?'#9aa39b':(win?'#0a4d2c':'#13241b')};`;
+      const ownerStyle = (S) => S.owner ? `font-size:10px;font-weight:800;color:${S.ownerColor};white-space:nowrap;flex:none;` : 'display:none;';
+      const scoreStyle = (win) => `font-family:'Anton',sans-serif;font-size:18px;flex:none;margin-left:6px;color:${win?'#0a4d2c':'#9aa39b'};${played?'':'display:none;'}`;
+      let metaLabel, metaColor;
+      if (finished)        { metaLabel = 'Full time';     metaColor = '#9aa39b'; }
+      else if (live)       { metaLabel = '🟢 Live';        metaColor = '#16a34a'; }
+      else if (t.h && t.a) { const d = new Date(t.utc); metaLabel = `${d.toLocaleDateString([], {weekday:'short',day:'numeric',month:'short'})} · ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`; metaColor = '#9aa39b'; }
+      else                 { metaLabel = 'To be decided'; metaColor = '#c2c7bd'; }
+      return {
+        homeFlagStyle: flagDiv(H.flagUrl,24,16), homeName: H.name, homeNameStyle: nameStyle(H,hWin),
+        homeOwner: H.owner, homeOwnerStyle: ownerStyle(H), homeScore: played ? (t.hs ?? '') : '', homeScoreStyle: scoreStyle(hWin),
+        awayFlagStyle: flagDiv(A.flagUrl,24,16), awayName: A.name, awayNameStyle: nameStyle(A,aWin),
+        awayOwner: A.owner, awayOwnerStyle: ownerStyle(A), awayScore: played ? (t.as ?? '') : '', awayScoreStyle: scoreStyle(aWin),
+        metaLabel, metaStyle:`font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:${metaColor};margin-top:8px;text-align:center;`,
+        clashText: sameOwner ? `🎭 ${H.owner} owns both` : clash ? `🔥 ${H.owner} vs ${A.owner}` : '',
+        clashStyle: (clash||sameOwner) ? 'position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:#0a4d2c;color:#f2b705;font-size:9px;font-weight:800;letter-spacing:.4px;padding:2px 8px;border-radius:20px;white-space:nowrap;' : 'display:none;',
+        cardStyle: `position:relative;background:#fff;border:1px solid ${(clash||sameOwner)?'#f2d9a0':'#e3e0d3'};border-radius:12px;padding:11px 13px;${(clash||sameOwner)?'box-shadow:0 0 0 2px rgba(242,183,5,.12);':''}`,
+      };
+    };
+    const bracketRounds = ROUND_DEFS.map(([code,label]) => {
+      const ties = rawBr.filter(t => t.stage===code).map(mkTie);
+      return { code, label, ties, sub:`${ties.length} tie${ties.length!==1?'s':''}` };
+    }).filter(r => r.ties.length>0);
+
     return {
       leagueName, potAmount, leaderName:leader.name,
       goSquad:setTab('squad'), goTable:setTab('table'), goScores:setTab('scores'),
@@ -753,6 +834,7 @@ class Component extends DCLogic {
       scoreDays, clashCount, scoreSubtitle, noScores: scoreDays.length===0,
       upcomingDays, hasUpcoming: upcomingDays.length>0,
       groups, groupsSubtitle, roundNames,
+      bracketRounds, bracketLive, bracketLocked: !bracketLive, bracketSubtitle,
     };
   }
 }

@@ -198,6 +198,30 @@ exports.handler = async function (event) {
 
     const stages = Object.entries(stagesMap).map(([code, stage]) => ({ code, stage }));
 
+    // ── Knockout bracket ───────────────────────────────────────────────────────
+    // Includes every knockout tie, even those with TBD teams (null) so the
+    // bracket renders its structure now and fills in after the group stage.
+    const bracket = [];
+    for (const m of allMatches) {
+      if (m.stage === 'GROUP_STAGE') continue;
+      const stage = m.stage === 'FINAL'       ? 'F'
+                  : m.stage === 'THIRD_PLACE'  ? '3P'
+                  : (STAGE_CODE[m.stage] || m.stage);
+      const ft = m.score?.fullTime;
+      const finished = m.status === 'FINISHED';
+      const sw = m.score?.winner; // resolves ET/penalties for us
+      bracket.push({
+        stage,
+        h: mapTla(m.homeTeam?.tla, m.homeTeam?.name) || null,
+        a: mapTla(m.awayTeam?.tla, m.awayTeam?.name) || null,
+        hs: finished ? (ft?.home ?? null) : null,
+        as: finished ? (ft?.away ?? null) : null,
+        status: m.status,
+        utc: m.utcDate,
+        winner: sw === 'HOME_TEAM' ? 'h' : sw === 'AWAY_TEAM' ? 'a' : null,
+      });
+    }
+
     return {
       statusCode: 200,
       headers: {
@@ -205,7 +229,7 @@ exports.handler = async function (event) {
         // CDN caches for 30 s — all users share one API call per 30 s window
         'Cache-Control': 's-maxage=30, max-age=30',
       },
-      body: JSON.stringify({ standings, fixtures, stages, upcoming: upcoming.slice(0, 16) }),
+      body: JSON.stringify({ standings, fixtures, stages, upcoming: upcoming.slice(0, 16), bracket }),
     };
 
   } catch (err) {
