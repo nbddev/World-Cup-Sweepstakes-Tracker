@@ -123,7 +123,7 @@
       </div>
 
       <!-- TABS -->
-      <div style="display:flex;gap:6px;margin-top:20px;overflow-x:auto;padding-bottom:2px;">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:20px;padding-bottom:2px;">
         <button onClick="{{ goSquad }}" style="position:relative;font-family:'Hanken Grotesk',sans-serif;font-weight:800;font-size:14px;letter-spacing:.3px;padding:11px 18px;border:none;cursor:pointer;border-radius:11px 11px 0 0;white-space:nowrap;background:rgba(255,255,255,.08);color:#cfe6d8;overflow:hidden;">The Draw<sc-if value="{{ isSquad }}"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f2e9;color:#0a4d2c;border-radius:11px 11px 0 0;">The Draw</span></sc-if></button>
         <button onClick="{{ goTable }}" style="position:relative;font-family:'Hanken Grotesk',sans-serif;font-weight:800;font-size:14px;letter-spacing:.3px;padding:11px 18px;border:none;cursor:pointer;border-radius:11px 11px 0 0;white-space:nowrap;background:rgba(255,255,255,.08);color:#cfe6d8;overflow:hidden;">Leaderboard<sc-if value="{{ isTable }}"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f2e9;color:#0a4d2c;border-radius:11px 11px 0 0;">Leaderboard</span></sc-if></button>
         <button onClick="{{ goScores }}" style="position:relative;font-family:'Hanken Grotesk',sans-serif;font-weight:800;font-size:14px;letter-spacing:.3px;padding:11px 18px;border:none;cursor:pointer;border-radius:11px 11px 0 0;white-space:nowrap;background:rgba(255,255,255,.08);color:#cfe6d8;overflow:hidden;">Scores<sc-if value="{{ isScores }}"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f2e9;color:#0a4d2c;border-radius:11px 11px 0 0;">Scores</span></sc-if></button>
@@ -264,26 +264,28 @@
     <div>
       <h2 style="font-family:'Anton',sans-serif;font-size:30px;margin:0 0 18px;text-transform:uppercase;letter-spacing:.5px;">Leaderboard</h2>
       <div style="background:#fff;border:1px solid #e3e0d3;border-radius:16px;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.02);">
-        <div style="display:grid;grid-template-columns:54px 1fr auto 86px;gap:12px;padding:11px 18px;background:#0a4d2c;color:#cfe6d8;font-size:11px;letter-spacing:1.2px;font-weight:800;text-transform:uppercase;">
-          <div>Rank</div><div>Player</div><div>Teams</div><div style="text-align:right;">Points</div>
+        <div style="display:grid;grid-template-columns:46px 1fr auto;gap:12px;padding:11px 18px;background:#0a4d2c;color:#cfe6d8;font-size:11px;letter-spacing:1.2px;font-weight:800;text-transform:uppercase;">
+          <div>Rank</div><div>Player &amp; Teams</div><div style="text-align:right;">Points</div>
         </div>
         <sc-for list="{{ board }}" as="r" hint-placeholder-count="9">
           <div style="{{ r.rowStyle }}">
-            <div style="font-family:'Anton',sans-serif;font-size:22px;display:flex;align-items:center;gap:4px;">{{ r.rankLabel }}</div>
-            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-              <div style="width:10px;height:10px;border-radius:50%;flex:none;background:{{ r.color }};"></div>
-              <span style="font-weight:800;font-size:17px;">{{ r.name }}</span>
-              <span style="{{ r.tieStyle }}">{{ r.tieLabel }}</span>
+            <div style="font-family:'Anton',sans-serif;font-size:22px;display:flex;align-items:center;">{{ r.rankLabel }}</div>
+            <div style="display:flex;flex-direction:column;gap:6px;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                <div style="width:10px;height:10px;border-radius:50%;flex:none;background:{{ r.color }};"></div>
+                <span style="font-weight:800;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.name }}</span>
+                <span style="{{ r.tieStyle }}">{{ r.tieLabel }}</span>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:5px 14px;">
+                <sc-for list="{{ r.teamsList }}" as="t" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="{{ t.flagDivStyle }}"></div>
+                    <span style="font-size:12px;font-weight:700;color:#3c463c;white-space:nowrap;">{{ t.name }}</span>
+                  </div>
+                </sc-for>
+              </div>
             </div>
-            <div style="display:flex;flex-direction:column;gap:4px;">
-              <sc-for list="{{ r.teamsList }}" as="t" hint-placeholder-count="2">
-                <div style="display:flex;align-items:center;gap:6px;">
-                  <div style="{{ t.flagDivStyle }}"></div>
-                  <span style="font-size:12px;font-weight:700;color:#3c463c;white-space:nowrap;">{{ t.name }}</span>
-                </div>
-              </sc-for>
-            </div>
-            <div style="text-align:right;font-family:'Anton',sans-serif;font-size:24px;">{{ r.totalStr }}</div>
+            <div style="text-align:right;font-family:'Anton',sans-serif;font-size:24px;align-self:center;">{{ r.totalStr }}</div>
           </div>
         </sc-for>
       </div>
@@ -594,7 +596,7 @@ class Component extends DCLogic {
       totalStr: this.fmt(p.total),
       tieLabel: tieCount[p.rank]>1 ? 'TIE' : '',
       tieStyle: tieCount[p.rank]>1 ? 'font-size:9px;font-weight:800;letter-spacing:.5px;background:#eef0ea;color:#6f7a6f;padding:2px 5px;border-radius:4px;' : 'display:none;',
-      rowStyle:`display:grid;grid-template-columns:54px 1fr auto 86px;gap:12px;padding:13px 18px;align-items:center;${i<playerList.length-1?'border-bottom:1px solid #f0eee3;':''}${p.rank===1?'background:#fffdf5;':''}`,
+      rowStyle:`display:grid;grid-template-columns:46px 1fr auto;gap:12px;padding:13px 18px;align-items:center;${i<playerList.length-1?'border-bottom:1px solid #f0eee3;':''}${p.rank===1?'background:#fffdf5;':''}`,
     }));
     const tiedLeaders  = playerList.filter(p => p.rank===1);
     const tiebreakNote = tiedLeaders.length>1
